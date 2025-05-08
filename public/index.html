@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoShorts Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #storyOutput, #errorOutput {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
+        #errorOutput {
+            display: none;
+            background-color: #ffebee;
+            border-color: #ffcdd2;
+            color: #c62828;
+        }
+        #videoOutput {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading:after {
+            content: ' .';
+            animation: dots 1s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: ' .'; }
+            40% { content: ' ..'; }
+            60% { content: ' ...'; }
+            80%, 100% { content: ' .'; }
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.success {
+            background-color: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background-color: #ffebee;
+            border: 1px solid #ffcdd2;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AutoShorts Generator</h1>
+        
+        <div class="form-group">
+            <label for="topic">Enter your topic:</label>
+            <input type="text" id="topic" placeholder="e.g., Night in Paris">
+        </div>
+        
+        <button id="generateStoryBtn">Generate Story</button>
+        <div id="storyLoading" class="loading">Generating story</div>
+        <div id="storyStatus" class="status"></div>
+        
+        <div id="storyOutput"></div>
+        <div id="errorOutput"></div>
+        
+        <button id="generateVideoBtn" disabled>Generate Video</button>
+        <div id="videoLoading" class="loading">Generating video</div>
+        <div id="videoStatus" class="status"></div>
+        
+        <div id="videoOutput"></div>
+    </div>
+
+    <script>
+        const storyApiUrl = 'https://jtthachil--autoshorts-story-api-fastapi-app-dev.modal.run/generate_story';
+        const videoApiUrl = 'https://jtthachil--autoshorts-video-api-fastapi-app-dev.modal.run/generate_video';
+        
+        let currentStory = '';
+        
+        function showError(element, message) {
+            const errorDiv = document.getElementById('errorOutput');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            element.classList.add('error');
+            element.classList.remove('success');
+            element.style.display = 'block';
+            console.error(message);
+        }
+        
+        function showSuccess(element, message) {
+            element.textContent = message;
+            element.classList.add('success');
+            element.classList.remove('error');
+            element.style.display = 'block';
+            console.log(message);
+        }
+        
+        document.getElementById('generateStoryBtn').addEventListener('click', async () => {
+            const topic = document.getElementById('topic').value;
+            if (!topic) {
+                alert('Please enter a topic');
+                return;
+            }
+            
+            const storyLoading = document.getElementById('storyLoading');
+            const storyOutput = document.getElementById('storyOutput');
+            const errorOutput = document.getElementById('errorOutput');
+            const generateVideoBtn = document.getElementById('generateVideoBtn');
+            const storyStatus = document.getElementById('storyStatus');
+            
+            storyLoading.style.display = 'block';
+            storyOutput.textContent = '';
+            errorOutput.style.display = 'none';
+            generateVideoBtn.disabled = true;
+            storyStatus.style.display = 'none';
+            
+            try {
+                console.log('Testing API connection...');
+                const testResponse = await fetch(storyApiUrl, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                console.log('API test response status:', testResponse.status);
+                console.log('API test response headers:', Object.fromEntries(testResponse.headers.entries()));
+                
+                if (!testResponse.ok) {
+                    throw new Error(`API test failed with status ${testResponse.status}`);
+                }
+                
+                console.log('Sending story generation request...');
+                const response = await fetch(storyApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ topic }),
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response text:', errorText);
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.message || errorMessage;
+                    } catch (e) {
+                        console.error('Failed to parse error response:', e);
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.story) {
+                    currentStory = data.story;
+                    storyOutput.textContent = currentStory;
+                    generateVideoBtn.disabled = false;
+                    showSuccess(storyStatus, 'Story generated successfully!');
+                } else {
+                    throw new Error('No story received from API');
+                }
+            } catch (error) {
+                console.error('Error details:', error);
+                showError(storyStatus, `Error: ${error.message}`);
+                errorOutput.textContent = 'Error generating story. Please try again.';
+                errorOutput.style.display = 'block';
+            } finally {
+                storyLoading.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('generateVideoBtn').addEventListener('click', async () => {
+            if (!currentStory) {
+                alert('Please generate a story first');
+                return;
+            }
+            
+            const videoLoading = document.getElementById('videoLoading');
+            const videoOutput = document.getElementById('videoOutput');
+            const videoStatus = document.getElementById('videoStatus');
+            
+            videoLoading.style.display = 'block';
+            videoOutput.innerHTML = '';
+            videoStatus.style.display = 'none';
+            
+            try {
+                console.log('Testing video API connection...');
+                const testResponse = await fetch(videoApiUrl, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                console.log('Video API test response status:', testResponse.status);
+                
+                if (!testResponse.ok) {
+                    throw new Error(`Video API test failed with status ${testResponse.status}`);
+                }
+                
+                console.log('Sending video generation request...');
+                const requestBody = {
+                    story: currentStory
+                };
+                console.log('Request body:', requestBody);
+                
+                const response = await fetch(videoApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody),
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response text:', errorText);
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.detail?.[0]?.msg || errorData.message || errorMessage;
+                    } catch (e) {
+                        console.error('Failed to parse error response:', e);
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.s3_url) {
+                    videoOutput.innerHTML = `
+                        <video controls width="100%">
+                            <source src="${data.s3_url}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    `;
+                    showSuccess(videoStatus, 'Video generated successfully!');
+                } else {
+                    throw new Error('Video URL not found in response');
+                }
+            } catch (error) {
+                console.error('Error details:', error);
+                showError(videoStatus, `Error: ${error.message}`);
+                videoOutput.innerHTML = `<p style="color: red;">Error generating video: ${error.message}</p>`;
+            } finally {
+                videoLoading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 
