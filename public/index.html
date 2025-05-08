@@ -199,10 +199,20 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Error response text:', errorText);
+                    
+                    // Show detailed error information on the page for debugging
+                    errorOutput.innerHTML = `
+                        <h4>API Error Details:</h4>
+                        <p>Status: ${response.status}</p>
+                        <p>Response: ${errorText}</p>
+                        <p>Request: ${JSON.stringify({ topic })}</p>
+                    `;
+                    errorOutput.style.display = 'block';
+                    
                     let errorMessage = `HTTP error! status: ${response.status}`;
                     try {
                         const errorData = JSON.parse(errorText);
-                        errorMessage = errorData.message || errorMessage;
+                        errorMessage = errorData.message || errorData.detail || errorMessage;
                     } catch (e) {
                         console.error('Failed to parse error response:', e);
                     }
